@@ -1,0 +1,8 @@
+{
+    "effects": [
+	{"name": "toneMapping", "vs" : "pass.vs", "fs" : "mono-tone.fs"},
+	{"name": "gaussX", "vs" : "pass.vs", "fs" : "gaussX.fs"},
+	{"name": "gaussY", "vs" : "pass.vs", "fs" : "gaussY.fs"},
+	{"name": "add", "vs" : "pass.vs", "fs" : "add.fs"}
+	]
+}

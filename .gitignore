@@ -1,0 +1,59 @@
+# Prerequisites
+*.d
+
+# Compiled Object files
+*.slo
+*.lo
+*.o
+*.obj
+
+data/
+
+# Precompiled Headers
+*.gch
+*.pch
+
+# Compiled Dynamic libraries
+*.so
+*.dylib
+*.dll
+
+# Fortran module files
+*.mod
+*.smod
+
+# Compiled Static libraries
+*.lai
+*.la
+*.a
+*.lib
+
+*.bak
+
+imgui.ini
+
+# Executables
+*.exe
+*.out
+*.app
+lib/dawn/bin/win/ARM64/Debug/dawn_native.dll.exp
+lib/dawn/bin/win/ARM64/Debug/dawn_platform.dll.exp
+lib/dawn/bin/win/ARM64/Debug/dawn_proc.dll.exp
+lib/dawn/bin/win/ARM64/Release/dawn_native.dll.exp
+lib/dawn/bin/win/ARM64/Release/dawn_platform.dll.exp
+lib/dawn/bin/win/ARM64/Release/dawn_proc.dll.exp
+*.log
+out/Debug/
+out/x64/
+
+.vs/
+
+.vs/WebRenderer/v16/.suo
+
+.vs/WebRenderer/v16/Browse.VC.db
+
+.vs/WebRenderer/v16/Browse.VC.db-shm
+
+.vs/WebRenderer/v16/Browse.VC.db-wal
+
+.vs/WebRenderer/v16/Browse.VC.opendb

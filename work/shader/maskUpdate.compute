@@ -1,0 +1,45 @@
+struct Param 
+{
+	param0 : vec4<f32>,
+}
+
+@group(0) @binding(0) var<uniform> param : Param;
+@group(0) @binding(1) var inputA : texture_3d<f32>;
+@group(0) @binding(2) var inputB : texture_3d<f32>;
+@group(0) @binding(3) var output : texture_storage_3d<rgba8unorm, write>;
+
+
+
+@compute @workgroup_size(4, 4, 4)
+fn main(@builtin(global_invocation_id) global_id : vec3<u32>) 
+{
+	var bounds = vec3<i32>(i32(param.param0.x), i32(param.param0.y), i32(param.param0.z));
+	// Guard against out-of-bounds work group sizes
+	if ( global_id.x >= u32(bounds.x) || global_id.y >= u32(bounds.y) || global_id.z >= u32(bounds.z) )  {
+		return;
+	}
+	var tex_coord = vec3<i32>(i32(global_id.x), i32(global_id.y), i32(global_id.z) );
+	var sampleA = textureLoad(inputA, tex_coord, 0);
+	var sampleB = textureLoad(inputB, tex_coord, 0);
+	
+	var result = vec4<f32>(0.0);
+	var channel = i32(param.param0.w);
+	if(channel == 0)
+	{
+		result = vec4<f32>(sampleB.x, sampleA.y, sampleA.z, sampleA.w);
+	}
+	if(channel == 1)
+	{
+		result = vec4<f32>(sampleA.x, sampleB.x, sampleA.z, sampleA.w);
+	}
+	if(channel == 2)
+	{
+		result = vec4<f32>(sampleA.x, sampleA.y, sampleB.x, sampleA.w);
+	}
+	if(channel == 3)
+	{
+		result = vec4<f32>(sampleA.x, sampleA.y, sampleA.z, sampleB.x);
+	}
+	
+	textureStore(output, tex_coord, result);	
+}

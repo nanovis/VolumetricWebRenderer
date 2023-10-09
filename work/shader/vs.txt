@@ -1,0 +1,30 @@
+varying vec3 eye,dir,light,lightPos, fragPos;
+
+uniform mat4 modelview;
+
+void main()
+{
+	mat4 inv = inverse(modelview);
+	vec3 ve;
+	gl_Position = gl_Vertex;
+	fragPos = gl_Vertex;
+
+
+	float fov = (45.0 / 360.0) * (2.0 * 3.141592654);
+    float fl = 1.0 / tan(fov / 2.0);
+	
+	//ve = vec3(inv * vec4(gl_Vertex.x*gl_Color.r, gl_Vertex.y, gl_Vertex.z, 1.0));
+	ve = vec3(inv * vec4(gl_Vertex.x / (1080.0 / 1920.0), gl_Vertex.y, gl_Vertex.z - fl, 1.0));
+
+	eye = vec3(inv * vec4(0.0, 0.0, 0.0, 1));
+
+	dir = ve - eye;
+	//lightPos = vec3(inv * vec4(10.0, 3.0, 8.0, 1));
+	lightPos = vec3(inv * vec4(1.0, 1.0, 3.0, 1));
+	//lightPos = vec3(4.0, 3.0, 5.0);
+	light = normalize(lightPos);
+
+	gl_TexCoord[0] = gl_MultiTexCoord0;
+}
+
+

@@ -1,0 +1,15 @@
+{
+	"fullscreen": 87,
+	"annotation_mode": 342,
+	"rotation_mouse": 0,
+	"zoom_mouse": 1,
+	"slices_mouse": 2,
+	"clipping-disabled": 48,
+	"clipping-x-axis": 49,
+	"clipping-y-axis": 50,
+	"clipping-z-axis": 51,
+	"clipping-view-aligned": 52,
+	"clipping_raw_data": 32,
+	"_comment keys": "keycodes can be found here - https://www.glfw.org/docs/3.3/group__keys.html",
+	"_comment mouse buttons": "mouse button codes can be found here - https://www.glfw.org/docs/3.3/group__buttons.html"
+}

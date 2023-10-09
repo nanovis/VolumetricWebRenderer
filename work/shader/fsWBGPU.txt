@@ -1,0 +1,1070 @@
+//data texture
+uniform sampler3D Data;
+uniform sampler1D Transfer1D;
+uniform sampler2D Transfer2D;
+
+uniform sampler3D vol[8];
+
+uniform sampler2D colorTexture;
+uniform sampler2D positionTexture;
+
+uniform float cut;
+
+
+uniform float _cut;
+uniform float _size;
+uniform float _scale;
+uniform float _offsetX;
+uniform float _offsetY;
+uniform float _offsetZ;
+uniform float _offset;
+uniform float _dvr;
+uniform float _dvr2;
+uniform float _color;
+uniform float _single;
+
+uniform mat4 modelview;
+uniform mat4 projection;
+
+vec4 col[8];
+
+float MULT = 10.0;
+
+//size of the data bounding box
+//vec3 size = vec3(1.0, 1.0, 0.25) * 0.5;
+
+vec3 size = vec3(1,1,1) * 1.0;
+
+//vec3 size = vec3(1,1,1) * mix(1.3, 0.7, _size);
+
+//vec3 size = vec3(-1024,-1440,448) * 0.00038 * 1.0;
+
+//rendering
+varying vec3 light,lightPos;
+
+/*float rand()
+{
+    return fract(sin(dot(gl_FragCoord.xy ,vec2(12.9898,78.233))) * 43758.5453);
+}*/
+
+uint seed;
+
+uint wang_hash(uint seed)
+{
+    seed = (seed ^ 61) ^ (seed >> 16);
+    seed *= 9;
+    seed = seed ^ (seed >> 4);
+    seed *= 0x27d4eb2d;
+    seed = seed ^ (seed >> 15);
+    return seed;
+}
+
+float rand()
+{
+	seed = wang_hash(seed);
+	float f = float(seed) * (1.0 / 4294967296.0);
+	return f
+	 / cos(f)
+	;
+}
+
+
+
+float cube(in vec3 eye, in vec3 dir, in vec3 size, out float fr)
+{
+	float far;
+	float near;
+	float t1, t2, t3;
+	int i;
+	fr = 0.0;
+	far = 9999.0;
+	near = -9999.0;
+	for (i = 0; i < 3; i++)
+	{
+		if (dir[i] == 0.0)
+		{
+			if (eye[i]<-0.0001 || eye[i]>0.0001)
+			{
+				return -1.0;
+			}
+		}
+		else
+		{
+			t1 = (-size[i] - eye[i]) / dir[i];
+			t2 = (size[i] - eye[i]) / dir[i];
+			if (t2 > t1)
+			{
+				t3 = t1;
+				t1 = t2;
+				t2 = t3;
+			}
+
+			if (t2 > near)
+				near=t2;
+			if (t1 < far)
+				far=t1;
+			if (far < 0.0) //eye lies behind the cube and looks away
+				return -1.0;
+			if (near > far) //eye is drunk
+				return -1.0;
+		}
+	}
+	if (near < 0.0) //eye lies within the cube
+	{
+		fr = far;
+		return 0.0;
+	}
+	else
+	{
+		fr = far;
+		return near;
+	}
+}
+
+float dataRead(in vec3 pos, int which)
+{	
+	float ramp0 = 0.4;
+	float ramp1 = 0.6999;	
+	
+	if (which == 0)
+	{
+		ramp0 = 0.4;
+		ramp1 = 0.999;
+	}
+	if (which == 1)
+	{
+		ramp0 = 0.125;
+		ramp1 = 0.9;
+	}
+	if (which == 2)
+	{
+		ramp0 = 0.3;
+		ramp1 = 0.999;
+	}
+	if (which == 3)
+	{
+		ramp0 = 0.4;
+		ramp1 = 0.999;
+	}
+	
+	if (which == 4)
+	{
+		//ramp0 = 0.58;
+		//ramp0 = 0.4;
+		ramp0 = 0.3;
+		ramp1 = 1.0;
+	}
+	if (which == 5)
+	{
+		//ramp0 = 0.58;
+		//ramp0 = 0.4;
+		ramp0 = 0.0;
+		ramp1 = 1.0;
+	}
+		
+	//ramp0 = 0.6;
+	//ramp1 = 0.999;
+	
+	/*if (which == 0 && pos.y > 0.4)
+		return 0.0;
+
+	if (which == 1 && pos.y > 0.45)
+		return 0.0;*/
+
+	vec4 value;
+	
+	//if (pos.y < 0.1)
+		//which = 1;
+	
+	vec3 uvy = pos.xyz;
+	
+	vec3 realSize = vec3(1024, 1440, 448);
+	float realZRatio = realSize.y / realSize.z;
+	float realXRatio = realSize.y / realSize.x;
+	
+	uvy.z -= 0.5;
+	uvy.z *= realZRatio;
+	uvy.z += 0.5;
+	
+	uvy.x -= 0.5;
+	uvy.x *= realXRatio;
+	uvy.x += 0.5;
+
+	vec3 centerOffsetS = vec3(-0.1, -0.082, 0.0);
+	vec3 centerOffsetT = vec3(0.0, -0.17, 0.0);
+	
+	vec3 centerOffset = mix(centerOffsetT, centerOffsetS, _offset);
+	
+	float scale = mix(0.8, 0.3, _scale);
+	scale = 1.0;
+		
+	//centerOffset = vec3(0.0, -0.17, 0.0);
+
+	uvy = ((1.0 - scale) * 0.5) + uvy * scale;
+	//uvy += centerOffset;
+	
+	
+	//uvy.z = 1.0-uvy.z;
+	
+	//uvy.xy *= 2.0;
+	
+	/*float mask = texture3D(vol[3], uvy).a;
+	
+	{
+		ramp0 = 0.3;
+		ramp1 = 0.999;		
+		mask = clamp((1.0 - mask - ramp0) / (ramp1 - ramp0), 0.0, 1.0);
+	}*/
+	
+	//float ov = texture3D(vol[4], uvy).a;
+	value = texture3D(vol[which], uvy);
+	
+	/*value = mix(
+		texture3D(vol[0], uvy),
+		texture3D(vol[1], uvy),
+		//vec4(0.25));
+		vec4(0.0));*/
+	
+	if (which == 3 || which == 5)
+	{
+		value = 1.0 - value;
+		/*if (value.a < 0.6)
+			value = vec4(0.0);*/
+		
+		/*float cont = -0.0;
+		float v = pow(cont + 1.0, 3.0) - 1.0;*/
+		//value = value + (value - 0.5) * v;	
+	}
+
+	vec3 ic = uvy;
+			
+			if (ic.x < 0.0 || ic.x > 1.0 ||
+			    ic.y < 0.0 || ic.y > 1.0 ||
+				ic.z < 0.0 || ic.z > 1.0)
+				return 0.0;
+			else
+ 
+	value.a = clamp((value.a - ramp0) / (ramp1 - ramp0), 0.0, 1.0);
+	
+	float cp = 0.5;
+	//if (ic.z > cp || ic.z < cp - 0.01) return 0.0;
+	
+	
+	//value.a = (value.a - ramp0) * (1.0 - ramp0);
+	
+	//value.a *= ov;
+	
+	//float mask = (1.0 - texture3D(vol[5], uvy).a);
+	
+	return clamp(value.a * mix(1.0, MULT, _dvr), 0.0, 1.0)
+	//* 0.025
+	;
+	
+	//return clamp(value.a * 100.0, 0.0, 1.0);
+	//return 1.0;
+}
+
+
+vec2 raySphereIntersect(vec3 r0, vec3 rd, vec3 s0, float sr)
+{
+    float a = dot(rd, rd);
+    vec3 s0_r0 = r0 - s0;
+    float b = 2.0 * dot(rd, s0_r0);
+    float c = dot(s0_r0, s0_r0) - (sr * sr);
+	float disc = b * b - 4.0 * a* c;
+    if (disc < 0.0) {
+        return vec2(-1.0, -1.0);
+    }else{
+		return vec2(-b - sqrt(disc), -b + sqrt(disc)) / (2.0 * a);
+	}
+}
+
+
+
+
+
+
+
+varying
+vec3 eye,dir;
+
+
+struct Ray {
+    vec3 O; // Origin
+    vec3 V; // Direction vector
+};
+
+// Notes: GLUP.viewport = [x0,y0,width,height]
+// clip-space coordinates are in [-1,1] (not [0,1]) !
+
+// Computes the ray that passes through the current fragment
+// The ray is in world space.
+Ray primary_ray() {
+	
+	vec2 crd = gl_FragCoord.xy / vec2(1920, 1080);
+	
+    vec4 near = vec4(
+    2.0 * ( crd.x - 0.5),
+    2.0 * ( crd.y - 0.5),
+        0.0,
+        1.0
+    );
+	
+	mat4 imp = inverse( projection *modelview);
+	
+    near = imp * near ;
+    vec4 far = near + imp * vec4(0.0,0.0, 1.0, 0.0);
+    near.xyz /= near.w ;
+    far.xyz /= far.w ;
+    return Ray(near.xyz, far.xyz-near.xyz) ;
+}
+
+// Updates fragment depth from a point in world space
+float frag_depth(in vec3 M_world_space) {
+    vec4 M_clip_space = modelview * projection * vec4(M_world_space,1.0);
+    float z = 0.5*(1.0 + M_clip_space.z/M_clip_space.w);
+    return (1.0-z)*gl_DepthRange.near + z*gl_DepthRange.far;
+}
+
+
+float lightRadius = 2.9;
+
+void main()
+{	
+	Ray ray = primary_ray();
+	
+	//eye = ray.O; dir = ray.V;
+	
+  if(false)
+	{
+		vec2 coord = gl_FragCoord.xy / vec2(1280, 720);
+		
+		//vec4 texel = texture3D(vol[4], vec3(coord, 0.5));
+		float ta = dataRead(vec3(coord, _size), 4);
+		
+		gl_FragColor = vec4(vec3(ta), 1.0);
+		return;
+	}	
+	
+	
+  	vec2 coord = gl_FragCoord.xy / vec2(1920, 1080);	
+	vec4 bgCol = texture2D(colorTexture, coord);
+	vec4 bgPos = texture2D(positionTexture, coord);
+	
+	bool isBg = false;
+	if (length(bgPos) > 1.9999999)
+	{
+		isBg = true;
+	}
+	else
+	{
+		isBg = false;
+	}
+	
+
+	if (false)
+if (coord.y > 0.5 || coord.x < 0.5)
+{
+	gl_FragColor = vec4(1,0,0,1);
+	return;
+}
+	
+	
+	
+	
+  seed = gl_FragCoord.x * gl_FragCoord.y;
+  
+  float bright = 2.46;
+  
+  col[0] = vec4(vec3(0.75, 0.25, 0.5) * 2.0, 1.0); 
+  col[1] = vec4(0.8,0.8,0.9,1); 
+  col[2] = vec4(0.3,0.5,0.8,1); 
+  col[3] = vec4(1,1,1,1); 
+  col[4] = vec4(1,1,1,1); 
+
+  
+  /*col[0] = vec4(vec3(0.55, 0.35, 0.5) * 1.02 * bright, 1.0); 
+  col[1] = vec4(vec3(0.2,0.05,0.07) * bright, 1.0);
+  col[2] = vec4(vec3(0.37,0.15,0.18) * bright, 1.0);
+  col[3] = vec4(vec3(0.12,0.14,0.25) * 1.5 * bright, 1.0);
+  col[4] = vec4(vec3(.8,.1,0.1) * 1.5 * bright, 1.0);
+  col[5] = vec4(vec3(0.62, 0.6, 0.67) * 0.6 * bright, 1.0);
+  col[6] = vec4(1,1,1,1);
+  col[7] = vec4(1,1,1,1);*/
+
+
+	vec4 color, background, mx; //sampled colors
+	vec3 halfV,                 //half vector
+		 isec0,                 //intersection
+		 isec1,                 //transformed intersection
+		 halfv,
+		 n = vec3(0.0),         //normal
+		 accumC = vec3(0.0),    //accumulated color (for DVR)
+		 voxelSize = 1.8 / vec3(832.0, 832.0, 494.0);
+		 //voxelSize = 1.0 / vec3(1024.0);
+	float accumA = 0.0, t, tmp, fr = 0.0, gm, nDotL;
+	
+	float accumA2 = 0.0;
+	vec3 accumC2 = vec3(0.0);
+
+	float firstHit = 0.0, lastHit = 0.0;
+
+	//float mxa[50];
+	int mxp = 0;
+
+	int i, j = 0;
+
+	/*for (i = 0; i < 50; i++)
+		mxa[i] = 0.0;*/
+
+	//background = vec4(texture2D(Transfer2D, vec2(0.0, 0.0)).rgb, 1.0);
+	//background = vec4(texture1D(Transfer1D, 0.0).rgb, 1.0);
+	//background = vec4(43.0 / 255.0, 167.0 / 255.0, 231.0 / 255.0, 1.0);
+
+		//background = vec4(1.0, 1.0, 1.0, 1.0);
+	//background = vec4(0.0, 0.0, 0.0, 1.0);
+
+	//background = vec4(43.0 / 255.0, 72.0 / 255.0, 136.0 / 255.0, 1.0);
+  background = vec4(0.0,0.01,0.06,1.0);
+  //background = vec4(1,1,1,1);
+  //background = vec4(0.64,0.6,0.6,1);
+  //background = vec4(0.7,0.65,0.68,1);
+
+	//vec4 cl = texture2D(Transfer2D, vec2(dir.x, dir.y));
+	//background = vec4(dir.x, dir.y, dir.z, 1.0);
+	//background = vec4(cl.rgb, 1.0);
+
+	color = background;
+
+	//get intersection with the bounding cube (in form of distance on the ray dir * t + eye)
+	t = cube(eye, dir, size, fr);
+  
+	//if ray missed the cube, just return first color (at 0.0) of the transfer function (without alpha)
+	if (false && t < 0.0)
+	{
+		vec2 zi = raySphereIntersect(eye, dir, lightPos, lightRadius);
+		if (zi.x >= 0.0 && zi.y >= 0.0)
+			gl_FragColor = vec4(1);
+		else		
+			gl_FragColor = background;
+	
+		return;
+	}
+	
+	//step size
+	float stepSize = 1.0 / (2048.0 * 3.0 / MULT); //0.003
+
+	//ray offset jittering
+	t += rand() * stepSize * 0.1;
+  
+  	
+	bool please = true;
+
+	
+	  float cut = mix(0.6, 
+	  mix(0.45, 0.8, _dvr),
+	  _cut);
+
+			
+	//rendering loop
+	i = 0;
+	
+	
+	
+	
+	if (_dvr < 1.0)
+	while (float(i) < (fr - t) / stepSize)
+	{
+		i++;
+
+		//calculate intersection along the ray
+		tmp = float(i) *
+		//mix(stepSize, stepSize * 1000.0, pow(float(i) / ((fr - t) / stepSize), 0.5))
+		//mix(stepSize * 1.0, stepSize * 0.0001, accumA)
+		stepSize
+		+ t;
+		isec0 = tmp * dir + eye;
+		
+		//transform it to match the bounding box centered on [0, 0, 0]
+		isec1 = (isec0 / size) * 0.5 + 0.5;
+
+		if (false && length(isec0-lightPos) < lightRadius)
+		{
+			accumA2 = 1.0;
+			accumC2 = vec3(1.0);
+			break;
+		}
+		
+		if (isec1.x < 0.0 || isec1.x > 1.0 ||
+			isec1.y < 0.0 || isec1.y > 1.0 ||
+			isec1.z < 0.0 || isec1.z > 1.0)
+		{
+			break;
+		}
+		
+				if (true)
+				{
+				  /*if (isec1.y > 0.98)
+				  {
+					  continue;
+				  }*/
+
+				  if (isec1.z > cut || isec1.z < cut - 0.2)
+				  {
+					  continue;
+				  }
+				  if (isec1.z <= cut && isec1.z >= cut - 0.2 && please)
+				  {
+						please = false;
+						float _accumA = 0.0;
+						vec3 _accumC = vec3(0.0);
+						
+						float mask = 0.0;
+						
+						//for (int k = 0; k < 3; k++)
+						int k = 4;
+						{
+							float a = dataRead(isec1,4);
+							
+							mask =
+							max(
+								dataRead(isec1,0),
+								max(
+									dataRead(isec1,1),
+									max(
+										dataRead(isec1,2),
+										dataRead(isec1,3)
+									)
+								)
+							);
+							
+							
+							
+							mask = mix(1.0, dataRead(isec1,3), _dvr2);
+							
+							//a *= mask;
+							
+							//a = texture3D(vol[k],isec1).a;
+
+							_accumC += (1.0 - _accumA) * col[k].rgb * a;
+							_accumA += (1.0 - _accumA) * a;		
+						}
+
+					  accumA2 = clamp(mask * 2.0, 0.0, 1.0);
+					  accumC2 = _accumC;
+					  
+					  /*if (mask == 1)
+						  accumC2 = vec3(1.0);*/
+					  
+					  break;
+				  }
+				}
+	
+    }
+    
+
+	
+	/*if (accumA2 == 1.0)
+	{
+		gl_FragColor = vec4(1,0,0,1);return;
+	}
+	else
+	{
+		gl_FragColor = vec4(1,1,0,1);return;		
+	}*/
+
+	
+	i = 0;
+	
+	
+	if (_dvr2 > 0.0)
+	while (float(i) < (fr - t) / stepSize)
+	{
+		i++;
+
+		//calculate intersection along the ray
+		tmp = float(i) *
+		//mix(stepSize, stepSize * 1000.0, pow(float(i) / ((fr - t) / stepSize), 0.5))
+		//mix(stepSize * 1.0, stepSize * 0.0001, accumA)
+		stepSize
+		+ t;
+		isec0 = tmp * dir + eye;
+		
+		//transform it to match the bounding box centered on [0, 0, 0]
+		isec1 = (isec0 / size) * 0.5 + 0.5;
+
+		if (false && length(isec0-lightPos) < lightRadius)
+		{
+			accumA = 1.0;
+			accumC = vec3(1.0);
+			break;
+		}
+		
+		if (isec1.x < 0.0 || isec1.x > 1.0 ||
+			isec1.y < 0.0 || isec1.y > 1.0 ||
+			isec1.z < 0.0 || isec1.z > 1.0)
+		{
+			break;
+		}
+
+		{
+				  /*if (isec1.y > 0.98)
+				  {
+					  continue;
+				  }*/
+
+				  if (isec1.z >= cut)
+				  {
+					  //continue;
+				  }				
+		}
+				
+	
+		if (accumA > 0.85/* && !please*/)
+		{
+			break;
+		}
+
+		
+	float maskValue = dataRead(isec1, 5);			
+
+ 		n.x = dataRead(isec1 - vec3(voxelSize.x, 0.0, 0.0), 3) - dataRead(isec1 + vec3(voxelSize.x, 0.0, 0.0), 3);
+		n.y = dataRead(isec1 - vec3(0.0, voxelSize.y, 0.0), 3) - dataRead(isec1 + vec3(0.0, voxelSize.y, 0.0), 3);
+		n.z = dataRead(isec1 - vec3(0.0, 0.0, voxelSize.z), 3) - dataRead(isec1 + vec3(0.0, 0.0, voxelSize.z), 3);
+		
+		/*n.x = dataRead(isec1 - vec3(voxelSize.x * 0.5, 0.0, 0.0), 0) - mx;
+		n.y = dataRead(isec1 - vec3(0.0, voxelSize.y * 0.5, 0.0), 0) - mx;
+		n.z = dataRead(isec1 - vec3(0.0, 0.0, voxelSize.z * 0.5), 0) - mx;*/
+		    
+	//float gm = length(n);
+    n = normalize(n);
+
+
+	//mx.a *= 1.0 * pow(gm, 2.0);
+	
+	  /*mx = dataRead(isec1, 3) 
+	  * gm
+	  ;*/
+	  //if (mx.a < 0.04) continue;
+	  //if (mx.a < 0.1) continue;
+	  
+
+
+
+
+	//float omx = dataRead(isec1, 4);
+	float omx = 1.0;
+
+	float spikeMx = 0.0;
+    //for (int which = 0; which <= 2; which++)
+    int which = 0;
+    {
+    
+      //if ((which < 3 || which == 5) && isec1.z < 0.5) continue;
+
+	  //if ((which < 2) && isec1.z > mix(1.0, 0.75,cut)) continue;
+	  
+	  //if (which < 2)
+	  
+
+
+ 		/*n.x = dataRead(isec1 - vec3(voxelSize.x, 0.0, 0.0), which) - dataRead(isec1 + vec3(voxelSize.x, 0.0, 0.0), which);
+		n.y = dataRead(isec1 - vec3(0.0, voxelSize.y, 0.0), which) - dataRead(isec1 + vec3(0.0, voxelSize.y, 0.0), which);
+		n.z = dataRead(isec1 - vec3(0.0, 0.0, voxelSize.z), which) - dataRead(isec1 + vec3(0.0, 0.0, voxelSize.z), which);
+		float gm = length(n);*/
+    	  
+		  /*mx = dataRead(isec1, which)
+		  //* pow(gm,2.2)
+		  ;*/
+
+ 		  //if (tmp < 0.63) mx.a = 0.0;
+
+	mx = dataRead(isec1, which);
+	
+	if (which == 0)
+		spikeMx = mx;	
+	
+	mx *= omx;	
+	
+	//if (which == 1) mx *= (1.0 - pow(spikeMx, 0.1));
+	if (which == 1 && spikeMx > 0.0) mx = 0.0;
+	
+	mx.a *= mix(1.0, (maskValue), _single);
+	
+if (mx.a < 0.025) continue;
+		  
+
+  		//halfV = normalize(vec3(10.0,0.0,10.0) - isec1);
+		halfV = normalize(lightPos - isec0);
+
+
+  		vec4 s = vec4(0);
+		vec4 s2 = vec4(0);
+  		float t;
+		
+		int q;
+		
+		if (false)
+		{
+			vec4 _s = vec4(0);
+			
+			//if (accumA > 0.0 || mx.a > 0.0)
+			for (q = 0; q < 1; q++)
+			{	
+				for (t = 0.01; t < 1.0; t += 0.02)
+				{			
+						vec3 randomDirection = -1.0 + 2.0 * vec3(rand(), rand(), rand());
+						randomDirection = normalize(randomDirection) * rand();
+						
+						halfV = normalize(lightPos + randomDirection * mix(0.0, lightRadius, t) - isec0);
+
+						vec3 sp = isec1 + halfV * t * 0.5;
+				
+				
+						/*vec3 _n;
+						_n.x = dataRead(sp - vec3(voxelSize.x, 0.0, 0.0), 0) - dataRead(sp + vec3(voxelSize.x, 0.0, 0.0), 0);
+						_n.y = dataRead(sp - vec3(0.0, voxelSize.y, 0.0), 0) - dataRead(sp + vec3(0.0, voxelSize.y, 0.0), 0);
+						_n.z = dataRead(sp - vec3(0.0, 0.0, voxelSize.z), 0) - dataRead(sp + vec3(0.0, 0.0, voxelSize.z), 0);			
+						
+						float _gm = length(_n);*/
+				
+					   //s += dataRead(isec1 + halfV * t, which) * (0.25 - t) * 5.5;
+					   
+					   float os = dataRead(sp, 4);
+					   float ms = dataRead(sp, 5);
+					   
+					   float v0 = dataRead(sp, 0);
+					   float v1 = dataRead(sp, 1);
+					   float v2 = dataRead(sp, 2);
+					   float vm = max(v0, max(v1, v2));
+					   //vm = dataRead(sp, 3);
+					   
+					   s += vm * os
+					   
+					   *
+					   mix(1.0, (ms), _single)
+
+					   /** _gm*/ * pow(1.0 - t, 2.0); //pow(1.0 - pow(t, 2.1), 10.01);
+					   //s += dataRead(isec1 + halfV * t * 1.0, 1); //pow(1.0 - pow(t, 2.1), 10.01);
+				}
+				s /= 0.7;
+				//s *= 5.0;
+				s = clamp(s, 0.0, 1.0);
+			
+				_s += s;
+			}
+			s = _s / float(q);
+		}
+		
+
+		if (true)
+		{
+			vec4 _s = vec4(0);
+			int samples = (int) mix(1.0,1.0,_dvr2);
+			samples = 3;
+			float radius = 0.01;
+			for (q = 0; q < samples; q++)
+			{
+				vec3 randomDirection = vec3(-1.0 + 2.0 * rand(), -1.0 + rand() * 2.0, -1.0 + 2.0 * rand());
+				randomDirection = normalize(randomDirection) * rand();	
+				
+				randomDirection = randomDirection + n * 0.5 + vec3(0.0, 2.0, 0.0);
+				
+				vec3 sp = isec1 + randomDirection * radius;
+				
+				float os = dataRead(sp, 4) * 0.5;
+				float ms = dataRead(sp, 5);
+				
+								
+			    float v0 = dataRead(sp, 0);
+			    float v1 = dataRead(sp, 1);
+			    float v2 = dataRead(sp, 2);
+			    float vm = max(v0, max(v1, v2));
+			    //vm = dataRead(sp, 3);
+					   
+				_s += vm * os
+					   *
+					   mix(1.0, (ms), _single)				
+				/** pow(length(randomDirection), 1.0)*/;
+			}
+			_s = pow(_s, vec4(1.0));
+			_s /= float(samples);
+			_s *= 20.0;
+			s2 = clamp(_s, 0.0, 1.0);
+
+			//s2 = mix(1.0 - s, _s, 1.2);
+			//s += _s * 0.0;
+			//s = s * 0.5 + _s;
+			//s *= 0.9;
+			///s = _s;
+		}
+		
+
+
+
+
+		
+			/*float pen = 0.0;
+			for (t = 0.01; t < 1.0; t += 0.01)
+			{			
+				   pen += dataRead(isec1 + n * t * 0.0001, 1) * pow(1.0 - t, 1.0);
+			}
+			pen *= 2.0;
+			pen = clamp(s, 0.0, 1.0);		*/
+		
+		
+		
+		
+  		nDotL = max(dot(n, halfV), 0.0);
+  
+  
+  		//base color
+  		//color = vec4(0.9,0.9,0.9,1.0);
+  		//color = vec4(0.9,0.85,0.82,1.0); //skull
+      
+      //color = mix(col[0], col[1], 1.0 /** pow(accumA, 1.0)*/) * 1.0;
+	  //color = mix(col[0], col[1], pow(accumA, 0.1));
+	  
+	  //color = mix(col[0], col[1], 0.0);
+	  color = col[which];
+	  
+	  vec3 colorGray = vec3(0.7,0.7,0.7);
+	  
+	  color.rgb = mix(colorGray, color.rgb, _color);
+	  //color.rgb = vec3(0.5,0.5,0.5);
+	  
+	  //if (accumA > 0.7) color = col[1];
+	  
+	  if (isec1.y < 0.04)
+	  {
+		  //color = vec4(1,1,1,1) * 1.0;
+		  //n = vec3(0.0, 1.0, 1.0);
+	  }
+  
+  		/*if (mx.a < 0.4)
+  			color = vec4(0.7,0.1,0.1,1.0);
+  		else
+  			color = vec4(0.9,0.92,0.9,1.0);*/
+  
+  		/*color = mix(vec4(0.7,0.2,0.2,1.0),
+  			vec4(0.9,0.92,0.9,1.0),
+  			smoothstep(0.3, 0.40, mx.a));*/
+  
+  		//color = vec4(0.9, 0.9, 0.9, 1.0);
+  
+  		//color = vec4(0.8,0.56,0.5,1.0);
+  		
+  		//ambient
+  		//color = mix(color, vec4(1.0), 0.1);
+  
+  
+     //mx.a *= 0.1;
+	
+		
+		
+		
+		//color = mix(color, color * pow(gm * 12.0, 1.0), 20.1);
+		//color = clamp(color, vec4(0), vec4(1.0));
+		//color = vec4(0);
+	      
+  		//diffuse		
+		//color = mix(vec4(0.0, 0.02, 0.1, 1.0), color, max(0.2, nDotL));
+  
+  		//specular
+  		//color = mix(color, color+vec4(1.0, 1.0, 1.0, 1.0), pow(max(0.0, nDotL), 120.0) * 3.0);		
+		
+		
+
+
+		if (false)
+		{
+			vec3 _eye = normalize(isec1.xyz - eye);
+			float fr = smoothstep(0.0, 1.0, pow(max(abs(dot(normalize(n.xyz), normalize( _eye.xyz ))), 0.0), 0.9));
+			color = mix(
+				vec4(vec3(0.0),1.0),
+				//color,
+				//(vec4(0.2) + (1.0 - s.a * 0.8)),
+				//vec4(4.0) * max(0.0, 1.0 - pow(s.a * 1.0, 1.0)),
+				vec4(1.0),
+				//color,
+				//color + vec4(1.0, 0.3, 0.0, 1.0) * 0.9,
+				1.0 - fr
+			);
+			color = mix(color, color * vec4(0.4), pow(1.0 * s.a, 2.0));
+			color = clamp(color, vec4(0), vec4(1.0));
+		}	
+		
+		
+		if (false)
+		{
+			vec3 _eye = normalize(isec1.xyz - eye);
+			float fr = smoothstep(0.0, 1.0, pow(max(abs(dot(-normalize(n.xyz), normalize( dir.xyz ))), 0.0), 0.01));
+			color = mix(
+				//vec4(0.0,0.0,0.0,1.0),
+				color,
+				vec4(20.0, 14.0, 0.0, 1.0) * 9.35,
+				1.0 - fr
+			);
+			//color = clamp(color, vec4(0), vec4(1.0));
+		}
+
+  		//shadows
+  		color = mix(color, color * vec4(0.15, 0.18, 0.32, 1.0), s.a * 1.5);
+		color = mix(color, color * vec4(0.15, 0.18, 0.32, 1.0), s2.a * 0.7);
+		color *= 1.15;
+
+		if (false)
+		{
+			vec3 _eye = normalize(isec1.xyz - eye);
+			float fr = smoothstep(0.0, 1.0, pow(max(abs(dot(-normalize(n.xyz), normalize( dir.xyz ))), 0.0), 0.05));
+			
+			/*color = mix(
+				color,
+				color + vec4(0.9, 0.5, 0.2, 1.0) * 7.0,
+				1.0 - fr
+			);*/
+			
+			
+			float transp = dataRead(isec1, 5);
+			
+			mx.a *= mix(1.0, (1.0 - fr) * 1.0, 1.0 - transp);
+			
+			//color = clamp(color, vec4(0), vec4(1.0));
+		}		
+
+
+	
+	
+	
+	if (true)	
+	{
+		vec3 fgPos = -1.0 + 2.0 * isec1.xyz;
+		fgPos *= size;
+		
+		//fgPos = (inverse(projection) * vec4(fgPos.rgb, 1.0)).xyz;
+		
+		//fgPos.z += 0.01;
+
+		//fgPos = isec0;
+		
+		//bgPos /= 0.00013;
+		//fgPos /= 0.00013;
+		//bgPos *= 19.5;
+		//bgPos /= 0.00013;
+		//bgPos *= 20;
+		
+		
+		
+		
+
+		vec4 bgView = ( modelview * vec4(	bgPos.rgb, 1.0) ).rgba;
+		vec4 fgView = ( modelview * vec4(	fgPos.rgb, 1.0	) ).rgba;
+		
+		
+
+			/*color.rgb = 0.5 + 0.5 * bgView.xyz;
+		if (gl_FragCoord.y < 540)
+			color.rgb = 0.5 + 0.5 * fgView.xyz;
+				
+		mx.a = 1.0;
+		
+		gl_FragColor = color; return;*/
+		
+			
+		
+		//if (length(eye-isec0) > length(eye-bgPos.xyz))
+		if (!isBg)
+		{
+			//bgView.z += 0.135;
+			
+			/*color.rgb=vec3(1,0,0);
+			mx.a = 1.0;
+		
+			if (bgView.z > 0.0)
+				color.rgb=vec3(1,1,0);*/
+			
+			//fgView.z *= 1000.0;
+			
+			//bgView.z += 0.4;
+			//bgView.z *= 1000.0;
+			
+			/*if (gl_FragCoord.y < 540)
+				gl_FragColor = vec4(vec3(-bgView.z), 1.0); 
+			else
+				gl_FragColor = vec4(vec3(-fgView.z), 1.0); return;*/
+			
+			if (bgView.z > fgView.z)
+			{
+				//color.rgb = fgView * 10.0;
+				//mx.a = 1.0;
+				
+				color.rgb = bgCol;
+				mx.a = 1.0;				
+			}
+
+		}
+	}
+	
+	
+	
+	
+		
+		
+		/*color.rgb = bgCol;
+		mx.a = 1.0;*/
+
+			//color.rgb = n.xyz;
+		
+		//color = clamp(color, vec4(0), vec4(1.0));
+  
+ 
+  		accumC += (1.0 - accumA) * color.rgb * mx.a;
+  		accumA += (1.0 - accumA) * mx.a;  
+
+		if (accumA > 0.9)
+  		{
+  			break;
+  		}		
+    }
+    
+    
+    
+    
+	}
+  
+  
+  
+  
+
+	if (false)
+	{
+		float accumA = 0.0;
+		vec3 accumC = vec3(0.0);
+		
+		for (int i = 0; i < 3; i++)
+		{
+			float a = texture3D(vol[i],vec3(gl_FragCoord.xy / 1024, 0.5)).a;			
+
+			accumC += (1.0 - accumA) * col[i].rgb * a;
+			accumA += (1.0 - accumA) * a;		
+		}
+	}
+	{
+		/*accumC += (1.0 - accumA) * accumC2 * accumA2;
+		accumA += (1.0 - accumA);			*/
+		accumC = mix(accumC, accumC2, accumA2);
+		
+		gl_FragColor = vec4(bgCol.rgb * (1.0 - mix(accumA, accumA, _dvr)) + mix(accumC, accumC, _dvr), 1.0);
+	}
+
+	
+	//gl_FragColor = vec4(dat,dat,dat,1);
+
+  //gl_FragColor = vec4(accumC, 1);
+	
+	//gl_FragColor = texture1D(Transfer1D, 0.0);
+	//gl_FragColor = vec4(mix(background.rgb, accumC, accumA), 1.0);
+	
+	//gl_FragColor = vec4(vec3(accumA), 1.0);
+  
+}
